@@ -10,9 +10,12 @@ app.secret_key = '1234'
 COGNITO_REGION = 'ap-south-1'
 COGNITO_USER_POOL_ID = 'ap-south-1_hGhZFdcTG'
 COGNITO_APP_CLIENT_ID = '6ggsv44k21d86u3tdlgje0ct0m'
+IDENTITY_POOL_ID = 'ap-south-1:7d72942f-f556-42e4-b72c-04e863561f18'
+BUCKET_NAME = 'diamond-inclusion-demo-bucket'
 
 
-cognito_client = boto3.client('cognito-idp', region_name=COGNITO_REGION)
+cognito_user = boto3.client('cognito-idp', region_name=COGNITO_REGION)
+cognito_identity = boto3.client('cognito-identity', region_name = COGNITO_REGION)
 
 @app.route('/')
 @app.route('/login', methods = ['GET', 'POST'])
@@ -26,7 +29,7 @@ def login():
         try:
             
             secret_hash = calculate_secret_hash(username)
-            response = cognito_client.initiate_auth(
+            response = cognito_user.initiate_auth(
                 ClientId=COGNITO_APP_CLIENT_ID,
                 AuthFlow='USER_PASSWORD_AUTH',
                 AuthParameters={
@@ -36,6 +39,24 @@ def login():
                 }
             )
             session['access_token'] = response['AuthenticationResult']['AccessToken']
+            session['id_token'] = response['AuthenticationResult']['IdToken']
+            
+            response = cognito_identity.get_id(
+            IdentityPoolId=IDENTITY_POOL_ID,
+            Logins={
+                'cognito-idp.ap-south-1.amazonaws.com/ap-south-1_hGhZFdcTG': session['id_token']
+                }
+            )
+
+            identity_id = response['IdentityId']
+            response = cognito_identity.get_credentials_for_identity(
+            IdentityId = identity_id
+            )
+
+            credentials = response['Credentials']
+            
+            print(credentials)
+            
             return redirect(url_for('protected'))
         
         except Exception as e:
@@ -48,6 +69,7 @@ def login():
 @app.route('/protected')
 def protected():
     if 'access_token' in session:
+        
         return "Protected Content"
     else:
         return redirect(url_for('login'))
