@@ -10,7 +10,7 @@ app.secret_key = '1234'
 COGNITO_REGION = 'ap-south-1'
 COGNITO_USER_POOL_ID = 'ap-south-1_hGhZFdcTG'
 COGNITO_APP_CLIENT_ID = '6ggsv44k21d86u3tdlgje0ct0m'
-IDENTITY_POOL_ID = 'ap-south-1:7d72942f-f556-42e4-b72c-04e863561f18'
+IDENTITY_POOL_ID = 'ap-south-1:101b81bc-6288-4912-9400-68ff78a6bbae'
 BUCKET_NAME = 'diamond-inclusion-demo-bucket'
 
 
@@ -50,12 +50,23 @@ def login():
 
             identity_id = response['IdentityId']
             response = cognito_identity.get_credentials_for_identity(
-            IdentityId = identity_id
+            IdentityId = identity_id,
+            Logins={
+                'cognito-idp.ap-south-1.amazonaws.com/ap-south-1_hGhZFdcTG': session['id_token']
+                }
             )
 
             credentials = response['Credentials']
-            
-            print(credentials)
+            session['AccessKeyId'] = credentials['AccessKeyId']
+            session['SecretKey'] = credentials['SecretKey']
+            session['SessionToken'] = credentials['SessionToken']
+            s3 = boto3.client('s3',
+                aws_access_key_id=credentials['AccessKeyId'],
+                aws_secret_access_key=credentials['SecretKey'],
+                aws_session_token=credentials['SessionToken'],
+                region_name=COGNITO_REGION
+                )
+
             
             return redirect(url_for('protected'))
         
