@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Annotation</title>
+    <style>
+        canvas {
+            border: 1px solid #000;
+        }
+    </style>
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+</head>
+<body>
+    <input type="file" id="imageInput" accept="image/*">
+    <canvas id="imageCanvas"></canvas>
+    <br>
+    <label for="labelSelect">Select Label:</label>
+    <select id="labelSelect">
+        <option value="0">Project</option>
+        <option value="1">Education</option>
+        <option value="2">Skills</option>
+        <option value="3">Name</option>
+        <option value="4">Designation</option>
+    </select>
+    <button id="drawBox">Draw Box</button>
+    <button id="clearCanvas">Clear Canvas</button>
+    <br>
+    <textarea id="coordinates" cols="30" rows="5" readonly></textarea>
+    <button id="saveData">Save Data</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+    <script src="https://code.jquery.com/jquery-3.6.3.js" integrity="sha256-nQLuAZGRRcILA+6dMBOvcRh5Pe310sBpanc6+QBmyVM=" crossorigin="anonymous"></script>
+    
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const imageCanvas = document.getElementById('imageCanvas');
+        const ctx = imageCanvas.getContext('2d');
+        const labelSelect = document.getElementById('labelSelect');
+        const drawBoxButton = document.getElementById('drawBox');
+        const clearCanvasButton = document.getElementById('clearCanvas');
+        const coordinatesTextarea = document.getElementById('coordinates');
+        const saveDataButton = document.getElementById('saveData')
+
+        let globalFilename = "";
+        let isDrawing = false;
+        let startPoint = {};
+        let endPoint = {};
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, imageCanvas.width, imageCanvas.height);
+        }
+
+        function drawBox() {
+            ctx.beginPath();
+            ctx.rect(startPoint.x, startPoint.y, endPoint.x - startPoint.x, endPoint.y - startPoint.y);
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = 'white';
+            ctx.fillText(labelSelect.value, startPoint.x + 5, startPoint.y + 15);
+            ctx.closePath();
+
+            const boxCoordinates = {
+                label: labelSelect.value,
+                x: startPoint.x,
+                y: startPoint.y,
+                width: endPoint.x - startPoint.x,
+                height: endPoint.y - startPoint.y,
+            };
+
+            coordinatesTextarea.value += JSON.stringify(boxCoordinates, null, 2) + '\n';
+        }
+
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    imageCanvas.width = img.width;
+                    imageCanvas.height = img.height;
+                    ctx.drawImage(img, 0, 0, img.width, img.height);
+                };
+                img.src = event.target.result;
+
+                // Set the globalFilename variable here
+                globalFilename = file.name;
+                console.log(file.name)
+            };
+
+            reader.readAsDataURL(file);
+        });
+
+        imageCanvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+            startPoint = { x: e.offsetX, y: e.offsetY };
+        });
+        imageCanvas.addEventListener('mouseup', (e) => {
+            if (isDrawing) {
+                endPoint = { x: e.offsetX, y: e.offsetY };
+                drawBox();
+                isDrawing = false;
+            }
+        });
+
+        clearCanvasButton.addEventListener('click', () => {
+            clearCanvas();
+            coordinatesTextarea.value = '';
+        });
+
+        saveDataButton.addEventListener('click', () => {
+        // Create a FormData object
+        const formData = new FormData();
+
+        // Append the image file to the FormData
+        const imageFile = imageInput.files[0];
+        formData.append('imageFile', imageFile);
+
+        // Append other data to the FormData
+        formData.append('image_name', globalFilename);
+        formData.append('coordinates', coordinatesTextarea.value);
+        formData.append('image_height', imageCanvas.height);
+        formData.append('image_width', imageCanvas.width);
+
+        // Send the data to the Flask app using AJAX
+        $.ajax({
+            type: "POST",
+            url: "{{ url_for('save_data') }}",
+            data: formData,
+            contentType: false, // Don't set any content type
+            processData: false, // Don't process the data
+            cache: false,
+            timeout: 800000,
+            success: function (response) {
+                console.log(response);
+            },
+            error: function (e) {
+                console.log("ERROR : ", e);
+            }
+        });
+    });
+
+    </script>
+</body>
+</html>

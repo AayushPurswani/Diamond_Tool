@@ -5,13 +5,16 @@ import hashlib
 import base64
 
 app = Flask(__name__)
+
 #ADD A BETTER SECRET KEY LATER
+resume_id = 0
+user_data_folder = 'user_data'
 app.secret_key = '1234'
-COGNITO_REGION = 'ap-south-1'
-COGNITO_USER_POOL_ID = 'ap-south-1_hGhZFdcTG'
-COGNITO_APP_CLIENT_ID = '6ggsv44k21d86u3tdlgje0ct0m'
-IDENTITY_POOL_ID = 'ap-south-1:101b81bc-6288-4912-9400-68ff78a6bbae'
-BUCKET_NAME = 'diamond-inclusion-demo-bucket'
+COGNITO_REGION = ''
+COGNITO_USER_POOL_ID = ''
+COGNITO_APP_CLIENT_ID = ''
+IDENTITY_POOL_ID = ''
+BUCKET_NAME = ''
 
 
 cognito_user = boto3.client('cognito-idp', region_name=COGNITO_REGION)
@@ -90,6 +93,47 @@ def calculate_secret_hash(username):
     message = username + COGNITO_APP_CLIENT_ID
     dig = hmac.new(secret.encode('utf-8'), msg=message.encode('utf-8'), digestmod=hashlib.sha256).digest()
     return base64.b64encode(dig).decode()
+
+@app.route('/save_data', methods=['POST'])
+def save_data():
+    
+    coordinates = request.form['coordinates']
+    fixed_json_string = re.sub(r'}\s*{', '}, {', coordinates)
+    fixed_json_string = f'[{fixed_json_string}]'
+    coordinates = json.loads(fixed_json_string)
+
+    img = request.files['imageFile']
+    img_name = os.path.join(user_data_folder, str(resume_id + 1) + '.jpg')
+    img.save(img_name)
+
+    json_extracted_text = []
+
+    #Include code to save the pdf.
+
+    for coordinate in coordinates:
+
+        result_text = extract_text(img_name, coordinate['x'], coordinate['y'], coordinate['width'], coordinate['height'])    
+        temp_dict = {coordinate['label'] : result_text, 
+                     'x' : coordinate['x'], 
+                     'y' : coordinate['y'], 
+                     'width' : coordinate['width'], 
+                     'height' : coordinate['height']}  
+        json_extracted_text.append(temp_dict)    
+    
+    final_json_dict = { 'resume_id' : resume_id + 1,
+                 'resume_path' : os.path.join(user_data_folder, str(resume_id + 1) + '.pdf'), #Use this as the pdf saving name always.
+                 'extracted_text' : json_extracted_text
+ 
+    }
+
+    json_file_path = os.path.join(user_data_folder, str(resume_id + 1) + '.json')
+
+    with open(json_file_path, 'w') as json_file:
+        json.dump(final_json_dict, json_file, indent = 4)
+
+    response_message = "Data received and processed successfully!"
+    return jsonify({'message': response_message})    
+
 
 if __name__  == '__main__':
     
